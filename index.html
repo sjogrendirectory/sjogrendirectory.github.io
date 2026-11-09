@@ -56,6 +56,8 @@
   }
   .verified{font-size:12px; color:var(--ok); margin-top:10px}
   .empty{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px 16px; font-size:14px; color:var(--ink2)}
+  .more{width:100%; font:inherit; font-size:15px; padding:12px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--accent); cursor:pointer}
+  .hint{font-size:13px; color:var(--ink3); text-align:center; margin-top:4px}
   .banner{margin:14px 16px 0; padding:11px 13px; border-radius:10px; background:#faeeda; color:#854f0b; font-size:13px}
   footer{margin:28px 16px 0; padding-top:16px; border-top:1px solid var(--line); font-size:12px; color:var(--ink3); line-height:1.7}
   a{color:var(--accent)}
@@ -122,6 +124,10 @@ var SETTINGS = {
   // Change to true if you ever want it shown.
   showVerified: false,
 
+  // How many doctors to draw at once. Everything else is behind "Show more".
+  // This keeps the page quick on cheap phones once the list gets long.
+  resultLimit: 50,
+
   // Everyday words patients type, mapped to the specialisation in your sheet.
   // Add as many as you like. Keep both sides lowercase.
   synonyms: {
@@ -149,7 +155,7 @@ var SAMPLE = [
   {name:"Dr. Priya Desai (SAMPLE)", spec:"Rheumatology", clinic:"Shanti Hospital", area:"Alkapuri", city:"Vadodara", phone:"0265 222 6666", timings:"Wed and Fri, 10am-1pm", note:"", verified:"21 Sep 2026", by:"RP"}
 ];
 
-var rows = [], spec = "", city = "", usingSample = false;
+var rows = [], spec = "", city = "", usingSample = false, shownCount = SETTINGS.resultLimit;
 
 function el(id){ return document.getElementById(id); }
 
@@ -246,7 +252,12 @@ function render(){
     return hay.indexOf(q) > -1;
   });
 
-  el("count").textContent = out.length === 0 ? "" : out.length + (out.length === 1 ? " doctor" : " doctors");
+  var visible = out.slice(0, shownCount);
+
+  el("count").textContent = out.length === 0 ? ""
+    : (out.length > visible.length
+        ? "Showing " + visible.length + " of " + out.length + " doctors"
+        : out.length + (out.length === 1 ? " doctor" : " doctors"));
 
   var list = el("list");
   list.innerHTML = "";
@@ -260,7 +271,7 @@ function render(){
     return;
   }
 
-  out.forEach(function(r){
+  visible.forEach(function(r){
     var tel = r.phone.replace(/[^0-9+]/g, "");
     var place = [r.clinic, r.area, r.city].filter(Boolean).join(", ");
     var sub = [r.area, r.city].filter(Boolean).join(", ");
@@ -279,11 +290,26 @@ function render(){
     card.innerHTML = html;
     list.appendChild(card);
   });
+
+  if (out.length > visible.length){
+    var left = out.length - visible.length;
+    var more = document.createElement("button");
+    more.className = "more";
+    more.type = "button";
+    more.textContent = "Show " + (left > SETTINGS.resultLimit ? SETTINGS.resultLimit + " more" : "the last " + left);
+    more.onclick = function(){ shownCount += SETTINGS.resultLimit; render(); };
+    list.appendChild(more);
+
+    var hint = document.createElement("p");
+    hint.className = "hint";
+    hint.textContent = "Or search above to find a doctor faster";
+    list.appendChild(hint);
+  }
 }
 
 function refreshChips(){
-  drawChips("specChips", "specLabel", uniq("spec"), spec, function(v){ spec = v; refreshChips(); render(); });
-  drawChips("cityChips", "cityLabel", uniq("city"), city, function(v){ city = v; refreshChips(); render(); });
+  drawChips("specChips", "specLabel", uniq("spec"), spec, function(v){ spec = v; shownCount = SETTINGS.resultLimit; refreshChips(); render(); });
+  drawChips("cityChips", "cityLabel", uniq("city"), city, function(v){ city = v; shownCount = SETTINGS.resultLimit; refreshChips(); render(); });
 }
 
 function start(data, sample){
@@ -308,7 +334,7 @@ function start(data, sample){
   render();
 }
 
-el("q").addEventListener("input", render);
+el("q").addEventListener("input", function(){ shownCount = SETTINGS.resultLimit; render(); });
 
 /* Paint the page straight away so nobody stares at a blank screen
    while the sheet is downloading. */
