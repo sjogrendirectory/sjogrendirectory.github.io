@@ -84,7 +84,7 @@
   <label class="vh" for="q">Search by doctor name, specialisation, clinic, city or state</label>
   <div class="searchbox">
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
-    <input type="search" id="q" placeholder="Doctor, specialisation, clinic or city" autocomplete="off">
+    <input type="search" id="q" placeholder="Doctor, clinic, city or state" autocomplete="off">
   </div>
   <div class="chiplabel" id="specLabel" style="display:none">Specialisation</div>
   <div class="chips" id="specChips"></div>
@@ -139,6 +139,12 @@ var SETTINGS = {
   // the sheet - it is for deciding what to re-check, not for patients to see.
   // Change to true if you ever want it shown.
   showVerified: false,
+
+  // Which rows of filter buttons to show under the search box.
+  // Any of "specialisation", "state", "city" - in the order you list them.
+  // City and state are still findable by typing in the search box, so they do
+  // not need a button row. Add them back here if you ever want them.
+  filterRows: ["specialisation"],
 
   // How many doctors to draw at once. Everything else is behind "Show more".
   // This keeps the page quick on cheap phones once the list gets long.
@@ -359,21 +365,34 @@ function render(){
   }
 }
 
+function hideRow(boxId, labelId){
+  el(boxId).innerHTML = "";
+  el(boxId).style.display = "none";
+  el(labelId).style.display = "none";
+}
+
 function refreshChips(){
+  var want = SETTINGS.filterRows || [];
   /* City choices follow the chosen state, so picking Gujarat does not leave
      Jaipur sitting in the city row. */
   var inState = function(r){ return !state || same(r.state, state); };
 
   if (city && !rows.some(function(r){ return inState(r) && same(r.city, city); })) city = "";
 
-  drawChips("specChips", "specLabel", uniq("spec"), spec,
-    function(v){ spec = v; shownCount = SETTINGS.resultLimit; refreshChips(); render(); });
+  if (want.indexOf("specialisation") > -1){
+    drawChips("specChips", "specLabel", uniq("spec"), spec,
+      function(v){ spec = v; shownCount = SETTINGS.resultLimit; refreshChips(); render(); });
+  } else { spec = ""; hideRow("specChips", "specLabel"); }
 
-  drawChips("stateChips", "stateLabel", uniq("state"), state,
-    function(v){ state = v; city = ""; shownCount = SETTINGS.resultLimit; refreshChips(); render(); });
+  if (want.indexOf("state") > -1){
+    drawChips("stateChips", "stateLabel", uniq("state"), state,
+      function(v){ state = v; city = ""; shownCount = SETTINGS.resultLimit; refreshChips(); render(); });
+  } else { state = ""; hideRow("stateChips", "stateLabel"); }
 
-  drawChips("cityChips", "cityLabel", uniq("city", inState), city,
-    function(v){ city = v; shownCount = SETTINGS.resultLimit; refreshChips(); render(); });
+  if (want.indexOf("city") > -1){
+    drawChips("cityChips", "cityLabel", uniq("city", inState), city,
+      function(v){ city = v; shownCount = SETTINGS.resultLimit; refreshChips(); render(); });
+  } else { city = ""; hideRow("cityChips", "cityLabel"); }
 }
 
 function start(data, sample){
