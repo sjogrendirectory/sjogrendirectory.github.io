@@ -43,6 +43,12 @@
   .name{font-size:16px; font-weight:600}
   .badge{display:inline-block; margin-top:6px; font-size:12px; padding:3px 9px; border-radius:6px; background:var(--accent-bg); color:var(--accent)}
   .where{font-size:14px; color:var(--ink2); margin-top:9px}
+  .days{display:flex; gap:5px; margin-top:10px}
+  .day{
+    width:27px; height:27px; border-radius:50%; display:inline-flex; align-items:center;
+    justify-content:center; font-size:12px; background:#f0efec; color:#b3b1ac;
+  }
+  .day.on{background:var(--accent-bg); color:var(--accent); font-weight:600}
   .meta{font-size:13px; color:var(--ink3); margin-top:6px}
   .note{font-size:13px; color:var(--ink2); margin-top:6px; font-style:italic}
   .actions{display:flex; gap:8px; margin-top:13px}
@@ -150,12 +156,21 @@ var SETTINGS = {
    ------------------------------------------------------------------ */
 
 var SAMPLE = [
-  {name:"Dr. Anjali Mehta (SAMPLE)", spec:"Rheumatology", clinic:"Arogya Multispeciality", area:"Navrangpura", city:"Ahmedabad", phone:"079 2222 1111", timings:"Mon-Fri, 10am-1pm", note:"", verified:"12 Oct 2026", by:"AB"},
-  {name:"Dr. Nilesh Shah (SAMPLE)", spec:"Ophthalmology", clinic:"Netra Eye Centre", area:"Paldi", city:"Ahmedabad", phone:"079 2222 4444", timings:"Mon-Sat, 11am-2pm", note:"Appointment needed", verified:"15 Oct 2026", by:"AB"},
-  {name:"Dr. Priya Desai (SAMPLE)", spec:"Rheumatology", clinic:"Shanti Hospital", area:"Alkapuri", city:"Vadodara", phone:"0265 222 6666", timings:"Wed and Fri, 10am-1pm", note:"", verified:"21 Sep 2026", by:"RP"}
+  {name:"Dr. Anjali Mehta (SAMPLE)", spec:"Rheumatology", clinic:"Arogya Multispeciality", address:"2nd floor, Swastik Cross Road, Navrangpura, Ahmedabad 380009", area:"Navrangpura", city:"Ahmedabad", phone:"079 2222 1111", timings:"10am - 1pm", note:"", verified:"12 Oct 2026", by:"AB", days:[true,true,true,true,true,false,false]},
+  {name:"Dr. Nilesh Shah (SAMPLE)", spec:"Ophthalmology", clinic:"Netra Eye Centre", address:"Ground floor, Bhatta Road, Paldi, Ahmedabad 380007", area:"Paldi", city:"Ahmedabad", phone:"079 2222 4444", timings:"11am - 2pm", note:"Appointment needed", verified:"15 Oct 2026", by:"AB", days:[true,true,true,true,true,true,false]},
+  {name:"Dr. Priya Desai (SAMPLE)", spec:"Rheumatology", clinic:"Shanti Hospital", address:"Near Race Course Circle, Alkapuri, Vadodara 390007", area:"Alkapuri", city:"Vadodara", phone:"0265 222 6666", timings:"10am - 1pm", note:"", verified:"21 Sep 2026", by:"RP", days:[false,false,true,false,true,false,false]}
 ];
 
 var rows = [], spec = "", city = "", usingSample = false, shownCount = SETTINGS.resultLimit;
+
+/* header in the sheet, letter on the pill, full name for the tooltip */
+var DAYS = [
+  ["mon", "M", "Monday"], ["tue", "T", "Tuesday"], ["wed", "W", "Wednesday"],
+  ["thu", "T", "Thursday"], ["fri", "F", "Friday"], ["sat", "S", "Saturday"],
+  ["sun", "S", "Sunday"]
+];
+
+function isYes(v){ return /^(true|yes|y|1|x)$/i.test(String(v).trim()); }
 
 function el(id){ return document.getElementById(id); }
 
@@ -197,6 +212,7 @@ function toRows(csv){
       name:     col(r, ["doctorname", "name"]),
       spec:     col(r, ["specialisation", "specialization", "specialty", "speciality"]),
       clinic:   col(r, ["clinichospital", "clinic", "hospital"]),
+      address:  col(r, ["completeaddress", "fulladdress", "address"]),
       area:     col(r, ["area", "locality"]),
       city:     col(r, ["city"]),
       phone:    col(r, ["phone", "phonenumber", "contact"]),
@@ -205,6 +221,7 @@ function toRows(csv){
       verified: col(r, ["lastverified", "verified"]),
       by:       col(r, ["verifiedby"])
     };
+    item.days = DAYS.map(function(d){ return isYes(col(r, [d[0], d[0] + "day"])); });
     if (item.name && item.phone) list.push(item);
   }
   return list;
@@ -273,13 +290,19 @@ function render(){
 
   visible.forEach(function(r){
     var tel = r.phone.replace(/[^0-9+]/g, "");
-    var place = [r.clinic, r.area, r.city].filter(Boolean).join(", ");
-    var sub = [r.area, r.city].filter(Boolean).join(", ");
+    var sub = r.address || [r.area, r.city].filter(Boolean).join(", ");
+    var place = [r.clinic, sub].filter(Boolean).join(", ");
     var card = document.createElement("div");
     card.className = "card";
     var html = '<div class="name">' + esc(r.name) + '</div>';
     if (r.spec)    html += '<div class="badge">' + esc(r.spec) + '</div>';
     if (r.clinic || sub) html += '<div class="where">' + esc(r.clinic) + (sub ? '<br>' + esc(sub) : '') + '</div>';
+    if (r.days && r.days.some(Boolean)){
+      html += '<div class="days">' + DAYS.map(function(d, i){
+        return '<span class="day' + (r.days[i] ? ' on' : '') + '" title="' +
+               d[2] + (r.days[i] ? '' : ' - closed') + '">' + d[1] + '</span>';
+      }).join('') + '</div>';
+    }
     if (r.timings) html += '<div class="meta">' + esc(r.timings) + '</div>';
     if (r.note)    html += '<div class="note">' + esc(r.note) + '</div>';
     html += '<div class="actions">' +
