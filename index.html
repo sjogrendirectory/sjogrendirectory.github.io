@@ -110,7 +110,9 @@ var SETTINGS = {
 
   // The name shown at the top of the page.
   siteName: "Sjogren's Doctor Directory",
-  siteSub:  "Gujarat - free for patients",
+
+  // A line under the title. Leave it "" and no line is shown at all.
+  siteSub:  "",
 
   // Your Google Sheet, published to the web as CSV.
   // Leave this empty ("") and the page shows sample data instead.
@@ -290,7 +292,14 @@ function render(){
 
   visible.forEach(function(r){
     var tel = r.phone.replace(/[^0-9+]/g, "");
-    var sub = r.address || [r.area, r.city].filter(Boolean).join(", ");
+    /* Full address, then area and city - but skip either one if the
+       address already mentions it, so nothing reads twice. */
+    var bits = [];
+    if (r.address) bits.push(r.address);
+    [r.area, r.city].forEach(function(v){
+      if (v && bits.join(", ").toLowerCase().indexOf(v.toLowerCase()) === -1) bits.push(v);
+    });
+    var sub = bits.join(", ");
     var place = [r.clinic, sub].filter(Boolean).join(", ");
     var card = document.createElement("div");
     card.className = "card";
@@ -338,10 +347,6 @@ function refreshChips(){
 function start(data, sample){
   rows = data;
   usingSample = !!sample;
-  el("siteName").textContent = SETTINGS.siteName;
-  el("siteSub").textContent = SETTINGS.siteSub;
-  document.title = SETTINGS.siteName;
-
   var foot = "This list is maintained by patient volunteers. It is not medical advice and not a recommendation. Please confirm timings with the clinic before you travel.";
   if (SETTINGS.reportContact){
     var c = SETTINGS.reportContact;
@@ -362,8 +367,9 @@ el("q").addEventListener("input", function(){ shownCount = SETTINGS.resultLimit;
 /* Paint the page straight away so nobody stares at a blank screen
    while the sheet is downloading. */
 el("siteName").textContent = SETTINGS.siteName;
-el("siteSub").textContent = SETTINGS.siteSub;
 document.title = SETTINGS.siteName;
+if (SETTINGS.siteSub){ el("siteSub").textContent = SETTINGS.siteSub; }
+else { el("siteSub").style.display = "none"; }
 
 if (!SETTINGS.sheetCsvUrl){
   start(SAMPLE, true);
