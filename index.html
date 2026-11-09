@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Doctor Directory</title>
+<meta name="description" content="A free, community-maintained directory of doctors with verified phone numbers.">
+<style>
+  :root{
+    --ink:#1a1a1a; --ink2:#5b5b5b; --ink3:#8a8a8a;
+    --line:#e3e3e0; --card:#ffffff; --page:#f7f6f3;
+    --accent:#1d5fa5; --accent-bg:#e6f1fb; --ok:#0f6e56;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--page); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    font-size:16px; line-height:1.5; -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:560px; margin:0 auto; padding:0 0 48px}
+  header{background:var(--card); border-bottom:1px solid var(--line); padding:16px}
+  h1{margin:0; font-size:18px; font-weight:600; line-height:1.3}
+  .sub{margin:3px 0 0; font-size:13px; color:var(--ink2)}
+  .pad{padding:14px 16px 0}
+  .searchbox{position:relative}
+  .searchbox svg{position:absolute; left:11px; top:11px; width:18px; height:18px; fill:none; stroke:var(--ink3); stroke-width:2}
+  input[type=search]{
+    width:100%; padding:11px 12px 11px 36px; font-size:16px; font-family:inherit;
+    border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--ink);
+    -webkit-appearance:none; appearance:none;
+  }
+  input[type=search]:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-bg)}
+  .chips{display:flex; gap:6px; flex-wrap:wrap; margin-top:10px}
+  .chip{
+    font:inherit; font-size:13px; padding:6px 12px; border-radius:999px; cursor:pointer;
+    border:1px solid var(--line); background:var(--card); color:var(--ink2);
+  }
+  .chip[aria-pressed=true]{border-color:var(--accent); background:var(--accent-bg); color:var(--accent); font-weight:500}
+  .chiplabel{font-size:12px; color:var(--ink3); margin:14px 0 6px; text-transform:uppercase; letter-spacing:.04em}
+  .count{font-size:13px; color:var(--ink2); padding:16px 16px 0; margin:0}
+  .list{padding:8px 16px 0; display:flex; flex-direction:column; gap:10px}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px}
+  .name{font-size:16px; font-weight:600}
+  .badge{display:inline-block; margin-top:6px; font-size:12px; padding:3px 9px; border-radius:6px; background:var(--accent-bg); color:var(--accent)}
+  .where{font-size:14px; color:var(--ink2); margin-top:9px}
+  .meta{font-size:13px; color:var(--ink3); margin-top:6px}
+  .note{font-size:13px; color:var(--ink2); margin-top:6px; font-style:italic}
+  .actions{display:flex; gap:8px; margin-top:13px}
+  .call{
+    flex:1; display:block; text-align:center; text-decoration:none; font-size:16px; font-weight:600;
+    padding:11px 8px; border-radius:10px; background:var(--accent); color:#fff;
+  }
+  .maps{
+    width:48px; display:flex; align-items:center; justify-content:center; text-decoration:none;
+    border:1px solid var(--line); border-radius:10px; color:var(--ink2); font-size:13px;
+  }
+  .verified{font-size:12px; color:var(--ok); margin-top:10px}
+  .empty{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px 16px; font-size:14px; color:var(--ink2)}
+  .banner{margin:14px 16px 0; padding:11px 13px; border-radius:10px; background:#faeeda; color:#854f0b; font-size:13px}
+  footer{margin:28px 16px 0; padding-top:16px; border-top:1px solid var(--line); font-size:12px; color:var(--ink3); line-height:1.7}
+  a{color:var(--accent)}
+  .vh{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1 id="siteName">Doctor Directory</h1>
+  <p class="sub" id="siteSub">Free for patients</p>
+</header>
+
+<div id="banner"></div>
+
+<div class="pad">
+  <label class="vh" for="q">Search by doctor name, specialisation, clinic, area or city</label>
+  <div class="searchbox">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+    <input type="search" id="q" placeholder="Doctor, specialisation, area or city" autocomplete="off">
+  </div>
+  <div class="chiplabel" id="specLabel" style="display:none">Specialisation</div>
+  <div class="chips" id="specChips"></div>
+  <div class="chiplabel" id="cityLabel" style="display:none">City</div>
+  <div class="chips" id="cityChips"></div>
+</div>
+
+<p class="count" id="count" role="status" aria-live="polite"></p>
+<div class="list" id="list"></div>
+
+<footer>
+  <p id="footText"></p>
+</footer>
+
+</div>
+
+<script>
+/* ------------------------------------------------------------------
+   SETTINGS - the only part of this file you ever need to change.
+   ------------------------------------------------------------------ */
+
+var SETTINGS = {
+
+  // The name shown at the top of the page.
+  siteName: "Sjogren's Doctor Directory",
+  siteSub:  "Gujarat - free for patients",
+
+  // Your Google Sheet, published to the web as CSV.
+  // Leave this empty ("") and the page shows sample data instead.
+  // SETUP.md explains how to get this link.
+  sheetCsvUrl: "https://docs.google.com/spreadsheets/d/e/2PACX-1vT5vj6VC2btRTH2q4o_--Sk-tOaBtcudQz-sJL3nwTjcP4lOo3gHrDp-pkccaqo7tsHVMiaAy-xFiCH/pub?gid=440548393&single=true&output=csv",
+
+  // Link to your "Suggest a Doctor" Google Form. Leave "" to hide it.
+  suggestFormUrl: "",
+
+  // Where people report a wrong number. An email address or a form link.
+  reportContact: "",
+
+  // Show "Number checked <date>" on each listing?
+  // Kept false on purpose: an old date makes the list look neglected even when
+  // the numbers still work. Volunteers still fill the Last Verified column in
+  // the sheet - it is for deciding what to re-check, not for patients to see.
+  // Change to true if you ever want it shown.
+  showVerified: false,
+
+  // Everyday words patients type, mapped to the specialisation in your sheet.
+  // Add as many as you like. Keep both sides lowercase.
+  synonyms: {
+    "dry eyes": "ophthalmology",
+    "dry eye": "ophthalmology",
+    "eyes": "ophthalmology",
+    "joint pain": "rheumatology",
+    "joints": "rheumatology",
+    "arthritis": "rheumatology",
+    "dry mouth": "oral medicine",
+    "teeth": "oral medicine",
+    "dentist": "oral medicine",
+    "throat": "ent",
+    "skin": "dermatology"
+  }
+};
+
+/* ------------------------------------------------------------------
+   Nothing below here needs editing.
+   ------------------------------------------------------------------ */
+
+var SAMPLE = [
+  {name:"Dr. Anjali Mehta (SAMPLE)", spec:"Rheumatology", clinic:"Arogya Multispeciality", area:"Navrangpura", city:"Ahmedabad", phone:"079 2222 1111", timings:"Mon-Fri, 10am-1pm", note:"", verified:"12 Oct 2026", by:"AB"},
+  {name:"Dr. Nilesh Shah (SAMPLE)", spec:"Ophthalmology", clinic:"Netra Eye Centre", area:"Paldi", city:"Ahmedabad", phone:"079 2222 4444", timings:"Mon-Sat, 11am-2pm", note:"Appointment needed", verified:"15 Oct 2026", by:"AB"},
+  {name:"Dr. Priya Desai (SAMPLE)", spec:"Rheumatology", clinic:"Shanti Hospital", area:"Alkapuri", city:"Vadodara", phone:"0265 222 6666", timings:"Wed and Fri, 10am-1pm", note:"", verified:"21 Sep 2026", by:"RP"}
+];
+
+var rows = [], spec = "", city = "", usingSample = false;
+
+function el(id){ return document.getElementById(id); }
+
+function parseCSV(text){
+  var out = [], row = [], field = "", inQ = false;
+  text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  for (var i = 0; i < text.length; i++){
+    var ch = text.charAt(i);
+    if (inQ){
+      if (ch === '"'){
+        if (text.charAt(i+1) === '"'){ field += '"'; i++; } else { inQ = false; }
+      } else { field += ch; }
+    } else if (ch === '"'){ inQ = true; }
+    else if (ch === ','){ row.push(field); field = ""; }
+    else if (ch === '\n'){ row.push(field); out.push(row); row = []; field = ""; }
+    else { field += ch; }
+  }
+  if (field !== "" || row.length){ row.push(field); out.push(row); }
+  return out;
+}
+
+function key(s){ return String(s).toLowerCase().replace(/[^a-z]/g, ""); }
+
+function toRows(csv){
+  var grid = parseCSV(csv).filter(function(r){ return r.join("").trim() !== ""; });
+  if (!grid.length) return [];
+  var head = grid[0].map(key);
+  function col(r, names){
+    for (var n = 0; n < names.length; n++){
+      var at = head.indexOf(names[n]);
+      if (at > -1 && r[at] !== undefined) return String(r[at]).trim();
+    }
+    return "";
+  }
+  var list = [];
+  for (var i = 1; i < grid.length; i++){
+    var r = grid[i];
+    var item = {
+      name:     col(r, ["doctorname", "name"]),
+      spec:     col(r, ["specialisation", "specialization", "specialty", "speciality"]),
+      clinic:   col(r, ["clinichospital", "clinic", "hospital"]),
+      area:     col(r, ["area", "locality"]),
+      city:     col(r, ["city"]),
+      phone:    col(r, ["phone", "phonenumber", "contact"]),
+      timings:  col(r, ["timings", "timing"]),
+      note:     col(r, ["noteforpatients", "note", "notes"]),
+      verified: col(r, ["lastverified", "verified"]),
+      by:       col(r, ["verifiedby"])
+    };
+    if (item.name && item.phone) list.push(item);
+  }
+  return list;
+}
+
+function uniq(field){
+  var seen = {}, out = [];
+  rows.forEach(function(r){
+    var v = r[field];
+    if (v && !seen[v.toLowerCase()]){ seen[v.toLowerCase()] = 1; out.push(v); }
+  });
+  return out.sort();
+}
+
+function drawChips(boxId, labelId, values, current, pick){
+  var box = el(boxId);
+  box.innerHTML = "";
+  if (values.length < 2){ box.style.display = "none"; el(labelId).style.display = "none"; return; }
+  box.style.display = ""; el(labelId).style.display = "";
+  values.unshift("All");
+  values.forEach(function(v){
+    var b = document.createElement("button");
+    b.className = "chip";
+    b.type = "button";
+    b.textContent = v;
+    b.setAttribute("aria-pressed", ((v === "All" && current === "") || v === current) ? "true" : "false");
+    b.onclick = function(){ pick(v === "All" ? "" : v); };
+    box.appendChild(b);
+  });
+}
+
+function esc(s){
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+function render(){
+  var raw = el("q").value.toLowerCase().trim().replace(/^dr\b\.?\s*/, "");
+  var q = SETTINGS.synonyms[raw] || raw;
+
+  var out = rows.filter(function(r){
+    if (spec && r.spec.toLowerCase() !== spec.toLowerCase()) return false;
+    if (city && r.city.toLowerCase() !== city.toLowerCase()) return false;
+    if (!q) return true;
+    var hay = (r.name + " " + r.spec + " " + r.clinic + " " + r.area + " " + r.city).toLowerCase();
+    return hay.indexOf(q) > -1;
+  });
+
+  el("count").textContent = out.length === 0 ? "" : out.length + (out.length === 1 ? " doctor" : " doctors");
+
+  var list = el("list");
+  list.innerHTML = "";
+
+  if (!out.length){
+    var msg = "No doctors found for this search.";
+    if (SETTINGS.suggestFormUrl){
+      msg += ' <a href="' + esc(SETTINGS.suggestFormUrl) + '">Suggest a doctor</a> and a volunteer will check the number and add them.';
+    }
+    list.innerHTML = '<div class="empty">' + msg + '</div>';
+    return;
+  }
+
+  out.forEach(function(r){
+    var tel = r.phone.replace(/[^0-9+]/g, "");
+    var place = [r.clinic, r.area, r.city].filter(Boolean).join(", ");
+    var sub = [r.area, r.city].filter(Boolean).join(", ");
+    var card = document.createElement("div");
+    card.className = "card";
+    var html = '<div class="name">' + esc(r.name) + '</div>';
+    if (r.spec)    html += '<div class="badge">' + esc(r.spec) + '</div>';
+    if (r.clinic || sub) html += '<div class="where">' + esc(r.clinic) + (sub ? '<br>' + esc(sub) : '') + '</div>';
+    if (r.timings) html += '<div class="meta">' + esc(r.timings) + '</div>';
+    if (r.note)    html += '<div class="note">' + esc(r.note) + '</div>';
+    html += '<div class="actions">' +
+            '<a class="call" href="tel:' + esc(tel) + '">Call ' + esc(r.phone) + '</a>' +
+            '<a class="maps" href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(place) + '" target="_blank" rel="noopener" aria-label="Directions">Map</a>' +
+            '</div>';
+    if (SETTINGS.showVerified && r.verified) html += '<div class="verified">Number checked ' + esc(r.verified) + '</div>';
+    card.innerHTML = html;
+    list.appendChild(card);
+  });
+}
+
+function refreshChips(){
+  drawChips("specChips", "specLabel", uniq("spec"), spec, function(v){ spec = v; refreshChips(); render(); });
+  drawChips("cityChips", "cityLabel", uniq("city"), city, function(v){ city = v; refreshChips(); render(); });
+}
+
+function start(data, sample){
+  rows = data;
+  usingSample = !!sample;
+  el("siteName").textContent = SETTINGS.siteName;
+  el("siteSub").textContent = SETTINGS.siteSub;
+  document.title = SETTINGS.siteName;
+
+  var foot = "This list is maintained by patient volunteers. It is not medical advice and not a recommendation. Please confirm timings with the clinic before you travel.";
+  if (SETTINGS.reportContact){
+    var c = SETTINGS.reportContact;
+    var href = (c.indexOf("@") > -1 && c.indexOf("http") !== 0) ? "mailto:" + c : c;
+    foot += ' <a href="' + esc(href) + '">Report a wrong number or ask to be removed</a>.';
+  }
+  el("footText").innerHTML = foot;
+
+  if (usingSample && !el("banner").innerHTML){
+    el("banner").innerHTML = '<div class="banner">Showing sample data. Open index.html and paste your sheet link into <strong>sheetCsvUrl</strong> to show real doctors.</div>';
+  }
+  refreshChips();
+  render();
+}
+
+el("q").addEventListener("input", render);
+
+/* Paint the page straight away so nobody stares at a blank screen
+   while the sheet is downloading. */
+el("siteName").textContent = SETTINGS.siteName;
+el("siteSub").textContent = SETTINGS.siteSub;
+document.title = SETTINGS.siteName;
+
+if (!SETTINGS.sheetCsvUrl){
+  start(SAMPLE, true);
+} else {
+  el("list").innerHTML = '<div class="empty">Loading doctors...</div>';
+  fetch(SETTINGS.sheetCsvUrl)
+    .then(function(res){ if (!res.ok) throw new Error(res.status); return res.text(); })
+    .then(function(txt){
+      var data = toRows(txt);
+      if (!data.length) throw new Error("no rows");
+      start(data, false);
+    })
+    .catch(function(){
+      el("banner").innerHTML = '<div class="banner">Could not load the sheet. Check that it is published to the web as CSV. Showing sample data meanwhile.</div>';
+      start(SAMPLE, true);
+    });
+}
+</script>
+</body>
+</html>
