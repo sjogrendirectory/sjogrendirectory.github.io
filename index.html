@@ -81,13 +81,15 @@
 <div id="banner"></div>
 
 <div class="pad">
-  <label class="vh" for="q">Search by doctor name, specialisation, clinic, area or city</label>
+  <label class="vh" for="q">Search by doctor name, specialisation, clinic, city or state</label>
   <div class="searchbox">
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
-    <input type="search" id="q" placeholder="Doctor, specialisation, area or city" autocomplete="off">
+    <input type="search" id="q" placeholder="Doctor, specialisation, clinic or city" autocomplete="off">
   </div>
   <div class="chiplabel" id="specLabel" style="display:none">Specialisation</div>
   <div class="chips" id="specChips"></div>
+  <div class="chiplabel" id="stateLabel" style="display:none">State</div>
+  <div class="chips" id="stateChips"></div>
   <div class="chiplabel" id="cityLabel" style="display:none">City</div>
   <div class="chips" id="cityChips"></div>
 </div>
@@ -125,6 +127,12 @@ var SETTINGS = {
   // Where people report a wrong number. An email address or a form link.
   reportContact: "",
 
+  // Show the consultation hours on each listing?
+  // Kept false on purpose: hours change often and go stale faster than
+  // anything else, and the patient is ringing the clinic anyway. The day
+  // pills carry the part that actually matters. Change to true to show them.
+  showTimings: false,
+
   // Show "Number checked <date>" on each listing?
   // Kept false on purpose: an old date makes the list look neglected even when
   // the numbers still work. Volunteers still fill the Last Verified column in
@@ -158,12 +166,12 @@ var SETTINGS = {
    ------------------------------------------------------------------ */
 
 var SAMPLE = [
-  {name:"Dr. Anjali Mehta (SAMPLE)", spec:"Rheumatology", clinic:"Arogya Multispeciality", address:"2nd floor, Swastik Cross Road, Navrangpura, Ahmedabad 380009", area:"Navrangpura", city:"Ahmedabad", phone:"079 2222 1111", timings:"10am - 1pm", note:"", verified:"12 Oct 2026", by:"AB", days:[true,true,true,true,true,false,false]},
-  {name:"Dr. Nilesh Shah (SAMPLE)", spec:"Ophthalmology", clinic:"Netra Eye Centre", address:"Ground floor, Bhatta Road, Paldi, Ahmedabad 380007", area:"Paldi", city:"Ahmedabad", phone:"079 2222 4444", timings:"11am - 2pm", note:"Appointment needed", verified:"15 Oct 2026", by:"AB", days:[true,true,true,true,true,true,false]},
-  {name:"Dr. Priya Desai (SAMPLE)", spec:"Rheumatology", clinic:"Shanti Hospital", address:"Near Race Course Circle, Alkapuri, Vadodara 390007", area:"Alkapuri", city:"Vadodara", phone:"0265 222 6666", timings:"10am - 1pm", note:"", verified:"21 Sep 2026", by:"RP", days:[false,false,true,false,true,false,false]}
+  {name:"Dr. Anjali Mehta (SAMPLE)", spec:"Rheumatology", clinic:"Arogya Multispeciality", address:"2nd floor, Swastik Cross Road, Navrangpura, Ahmedabad 380009", city:"Ahmedabad", state:"Gujarat", phone:"079 2222 1111", timings:"10am - 1pm", note:"", verified:"12 Oct 2026", by:"AB", days:[true,true,true,true,true,false,false]},
+  {name:"Dr. Nilesh Shah (SAMPLE)", spec:"Ophthalmology", clinic:"Netra Eye Centre", address:"Ground floor, Bhatta Road, Paldi, Ahmedabad 380007", city:"Ahmedabad", state:"Gujarat", phone:"079 2222 4444", timings:"11am - 2pm", note:"Appointment needed", verified:"15 Oct 2026", by:"AB", days:[true,true,true,true,true,true,false]},
+  {name:"Dr. Priya Desai (SAMPLE)", spec:"Rheumatology", clinic:"Shanti Hospital", address:"Near Race Course Circle, Alkapuri, Vadodara 390007", city:"Vadodara", state:"Gujarat", phone:"0265 222 6666", timings:"10am - 1pm", note:"", verified:"21 Sep 2026", by:"RP", days:[false,false,true,false,true,false,false]}
 ];
 
-var rows = [], spec = "", city = "", usingSample = false, shownCount = SETTINGS.resultLimit;
+var rows = [], spec = "", state = "", city = "", usingSample = false, shownCount = SETTINGS.resultLimit;
 
 /* header in the sheet, letter on the pill, full name for the tooltip */
 var DAYS = [
@@ -215,28 +223,39 @@ function toRows(csv){
       spec:     col(r, ["specialisation", "specialization", "specialty", "speciality"]),
       clinic:   col(r, ["clinichospital", "clinic", "hospital"]),
       address:  col(r, ["completeaddress", "fulladdress", "address"]),
-      area:     col(r, ["area", "locality"]),
       city:     col(r, ["city"]),
+      state:    col(r, ["state", "stateut", "stateandut"]),
       phone:    col(r, ["phone", "phonenumber", "contact"]),
       timings:  col(r, ["timings", "timing"]),
       note:     col(r, ["noteforpatients", "note", "notes"]),
       verified: col(r, ["lastverified", "verified"]),
       by:       col(r, ["verifiedby"])
     };
-    item.days = DAYS.map(function(d){ return isYes(col(r, [d[0], d[0] + "day"])); });
+    /* Days can arrive two ways: one "Days" cell holding something like
+       "Monday, Tuesday, Friday" (what the form produces), or seven separate
+       tick columns. The single cell wins when it is there. */
+    var dayText = col(r, ["days", "workingdays", "daysavailable", "whichdays"]);
+    item.days = DAYS.map(function(d){
+      return dayText
+        ? new RegExp("\\b" + d[0], "i").test(dayText)
+        : isYes(col(r, [d[0], d[0] + "day"]));
+    });
     if (item.name && item.phone) list.push(item);
   }
   return list;
 }
 
-function uniq(field){
+function uniq(field, pre){
   var seen = {}, out = [];
   rows.forEach(function(r){
+    if (pre && !pre(r)) return;
     var v = r[field];
     if (v && !seen[v.toLowerCase()]){ seen[v.toLowerCase()] = 1; out.push(v); }
   });
   return out.sort();
 }
+
+function same(a, b){ return String(a).toLowerCase() === String(b).toLowerCase(); }
 
 function drawChips(boxId, labelId, values, current, pick){
   var box = el(boxId);
@@ -264,10 +283,11 @@ function render(){
   var q = SETTINGS.synonyms[raw] || raw;
 
   var out = rows.filter(function(r){
-    if (spec && r.spec.toLowerCase() !== spec.toLowerCase()) return false;
-    if (city && r.city.toLowerCase() !== city.toLowerCase()) return false;
+    if (spec && !same(r.spec, spec)) return false;
+    if (state && !same(r.state, state)) return false;
+    if (city && !same(r.city, city)) return false;
     if (!q) return true;
-    var hay = (r.name + " " + r.spec + " " + r.clinic + " " + r.area + " " + r.city).toLowerCase();
+    var hay = (r.name + " " + r.spec + " " + r.clinic + " " + r.address + " " + r.city + " " + r.state).toLowerCase();
     return hay.indexOf(q) > -1;
   });
 
@@ -296,7 +316,7 @@ function render(){
        address already mentions it, so nothing reads twice. */
     var bits = [];
     if (r.address) bits.push(r.address);
-    [r.area, r.city].forEach(function(v){
+    [r.city, r.state].forEach(function(v){
       if (v && bits.join(", ").toLowerCase().indexOf(v.toLowerCase()) === -1) bits.push(v);
     });
     var sub = bits.join(", ");
@@ -312,7 +332,7 @@ function render(){
                d[2] + (r.days[i] ? '' : ' - closed') + '">' + d[1] + '</span>';
       }).join('') + '</div>';
     }
-    if (r.timings) html += '<div class="meta">' + esc(r.timings) + '</div>';
+    if (SETTINGS.showTimings && r.timings) html += '<div class="meta">' + esc(r.timings) + '</div>';
     if (r.note)    html += '<div class="note">' + esc(r.note) + '</div>';
     html += '<div class="actions">' +
             '<a class="call" href="tel:' + esc(tel) + '">Call ' + esc(r.phone) + '</a>' +
@@ -340,8 +360,20 @@ function render(){
 }
 
 function refreshChips(){
-  drawChips("specChips", "specLabel", uniq("spec"), spec, function(v){ spec = v; shownCount = SETTINGS.resultLimit; refreshChips(); render(); });
-  drawChips("cityChips", "cityLabel", uniq("city"), city, function(v){ city = v; shownCount = SETTINGS.resultLimit; refreshChips(); render(); });
+  /* City choices follow the chosen state, so picking Gujarat does not leave
+     Jaipur sitting in the city row. */
+  var inState = function(r){ return !state || same(r.state, state); };
+
+  if (city && !rows.some(function(r){ return inState(r) && same(r.city, city); })) city = "";
+
+  drawChips("specChips", "specLabel", uniq("spec"), spec,
+    function(v){ spec = v; shownCount = SETTINGS.resultLimit; refreshChips(); render(); });
+
+  drawChips("stateChips", "stateLabel", uniq("state"), state,
+    function(v){ state = v; city = ""; shownCount = SETTINGS.resultLimit; refreshChips(); render(); });
+
+  drawChips("cityChips", "cityLabel", uniq("city", inState), city,
+    function(v){ city = v; shownCount = SETTINGS.resultLimit; refreshChips(); render(); });
 }
 
 function start(data, sample){
@@ -375,7 +407,13 @@ if (!SETTINGS.sheetCsvUrl){
   start(SAMPLE, true);
 } else {
   el("list").innerHTML = '<div class="empty">Loading doctors...</div>';
-  fetch(SETTINGS.sheetCsvUrl)
+  /* Google tells browsers to keep the sheet for 5 minutes. That makes an edit
+     look like it did not save. A changing parameter plus no-store asks for a
+     fresh copy every time the page opens. */
+  var fresh = SETTINGS.sheetCsvUrl +
+              (SETTINGS.sheetCsvUrl.indexOf("?") > -1 ? "&" : "?") +
+              "t=" + Date.now();
+  fetch(fresh, { cache: "no-store" })
     .then(function(res){ if (!res.ok) throw new Error(res.status); return res.text(); })
     .then(function(txt){
       var data = toRows(txt);
